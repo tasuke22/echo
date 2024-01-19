@@ -15,7 +15,12 @@ func main() {
 	userRepository := repository.NewUserRepository(db)
 	userUsecase := usecase.NewUserUsecase(userRepository)
 	userController := controller.NewUserController(userUsecase)
-	e := router.NewRouter(userController)
+
+	taskRepository := repository.NewTaskRepository(db)
+	taskUsecase := usecase.NewTaskUsecase(taskRepository)
+	taskController := controller.NewTaskController(taskUsecase)
+
+	e := router.NewRouter(userController, taskController)
 	// エラーが発生した場合はログ情報を出力してプログラムを強制終了
 	e.Logger.Fatal(e.Start(":8080"))
 }
