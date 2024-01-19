@@ -4,6 +4,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/tasuke/udemy/model"
 	"github.com/tasuke/udemy/repository"
+	"github.com/tasuke/udemy/validator"
 	"golang.org/x/crypto/bcrypt"
 	"os"
 	"time"
@@ -17,17 +18,22 @@ type IUserUsecase interface {
 // この構造体はなにに依存すべきか考える => 具象ではなく抽象に依存することによって疎結合となりテストしやすい
 type userUsecase struct {
 	ur repository.IUserRepository
+	uv validator.IUserValidator
 }
 
 // IUserRepositoryを依存性の注入して、IUserUsecaseを返す
 // &userUsecase{}としてreturnするとどうなる？ => userUsecaseインスタンスはリポジトリとのやり取りができないため、データベースにアクセスする機能が失われます。
 // つまり、依存性の注入ができていないことになる。
-func NewUserUsecase(ur repository.IUserRepository) IUserUsecase {
-	return &userUsecase{ur}
+func NewUserUsecase(ur repository.IUserRepository, uv validator.IUserValidator) IUserUsecase {
+	return &userUsecase{ur, uv}
 }
 
 // ポインタレシーバになっている意味はなに？ => 構造体の状態の変更を反映させる。厳密には、SignUpメソッドがuserUsecaseの状態を変更する必要はないかもしれませんが、内部で保持しているリポジトリ（uu.ur）への参照を通じてデータベース操作を行うために、ポインタレシーバが使われています。
 func (uu *userUsecase) SignUp(user model.User) (model.UserResponse, error) {
+	// バリデーション
+	if err := uu.uv.UserValidate(user); err != nil {
+		return model.UserResponse{}, err
+	}
 	// パスワードを平文からハッシュ化している
 	hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
 	if err != nil {
@@ -48,6 +54,10 @@ func (uu *userUsecase) SignUp(user model.User) (model.UserResponse, error) {
 }
 
 func (uu *userUsecase) Login(user model.User) (string, error) {
+	// バリデーション
+	if err := uu.uv.UserValidate(user); err != nil {
+		return "", err
+	}
 	storedUser := model.User{}
 	// 登録されているユーザーをEmailで検索する
 	if err := uu.ur.GetUserByEmail(&storedUser, user.Email); err != nil {
